@@ -1,0 +1,56 @@
+// ============================================================
+// CATATAN: File ini adalah ENTRY POINT baru dengan Provider.
+// File lama telah digantikan oleh struktur folder berikut:
+//   lib/
+//   ├── main.dart                  ← entry point (file ini)
+//   ├── models/temp_unit.dart      ← enum & extension TempUnit
+//   ├── utils/temperature_converter_service.dart  ← logika konversi
+//   ├── providers/temperature_provider.dart       ← state management
+//   ├── screens/converter_screen.dart             ← layar utama
+//   └── widgets/
+//       ├── thermometer_visual.dart
+//       ├── unit_selector.dart
+//       ├── result_card.dart
+//       └── quick_reference.dart
+// ============================================================
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import 'providers/temperature_provider.dart';
+import 'screens/converter_screen.dart';
+
+void main() {
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
+  runApp(const TemperatureApp());
+}
+
+class TemperatureApp extends StatelessWidget {
+  const TemperatureApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => TemperatureProvider(),
+      child: MaterialApp(
+        title: 'Konversi Suhu',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          fontFamily: 'Nunito',
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFFF6B35),
+            brightness: Brightness.dark,
+          ),
+        ),
+        home: const ConverterScreen(),
+      ),
+    );
+  }
+}

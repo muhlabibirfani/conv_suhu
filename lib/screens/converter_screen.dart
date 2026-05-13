@@ -3,15 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/temperature_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/temp_unit.dart';
 import '../widgets/thermometer_visual.dart';
 import '../widgets/unit_selector.dart';
 import '../widgets/result_card.dart';
 import '../widgets/quick_reference.dart';
 
-/// Layar utama konversi suhu.
-/// Hanya bertanggung jawab untuk layout & animasi swap —
-/// logika bisnis sepenuhnya ada di [TemperatureProvider].
 class ConverterScreen extends StatefulWidget {
   const ConverterScreen({super.key});
 
@@ -28,15 +26,19 @@ class _ConverterScreenState extends State<ConverterScreen>
   @override
   void initState() {
     super.initState();
+
     _inputController = TextEditingController();
 
     _swapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
     _swapAnimation = Tween<double>(begin: 0, end: math.pi).animate(
       CurvedAnimation(
-          parent: _swapController, curve: Curves.easeInOutBack),
+        parent: _swapController,
+        curve: Curves.easeInOutBack,
+      ),
     );
   }
 
@@ -49,25 +51,170 @@ class _ConverterScreenState extends State<ConverterScreen>
 
   Future<void> _handleSwap() async {
     await _swapController.forward();
+
     if (!mounted) return;
+
     context.read<TemperatureProvider>().swapUnits();
-    // Sinkronkan TextField dengan nilai baru dari provider
+
     final provider = context.read<TemperatureProvider>();
+
     if (provider.inputValue != null) {
       _inputController.text = provider.format(provider.inputValue!);
     }
+
     _swapController.reset();
   }
 
-  void _handleReferenceTab(double celsius) {
+  void _handleReferenceTap(double celsius) {
     final provider = context.read<TemperatureProvider>();
     provider.setFromReference(celsius);
     _inputController.text = provider.format(provider.inputValue!);
   }
 
+  Future<void> _logout() async {
+    await context.read<AuthProvider>().logout();
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Apakah kamu yakin ingin logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _logout();
+              },
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showUserProfile() {
+    final user = context.read<AuthProvider>().user;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Profil Pengguna'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xFFFF6B35),
+                radius: 28,
+                child: Text(
+                  _getInitials(user?.email ?? 'U'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                user?.email ?? '-',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Bergabung: ${user?.metadata.creationTime?.toString().split('.')[0] ?? '-'}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _getInitials(String email) {
+    if (email.isEmpty) return 'U';
+    return email[0].toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, _) {
+              return PopupMenuButton<String>(
+                icon: CircleAvatar(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  child: Text(
+                    _getInitials(authProvider.user?.email ?? 'U'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onSelected: (value) {
+                  if (value == 'profile') {
+                    _showUserProfile();
+                  } else if (value == 'logout') {
+                    _showLogoutDialog();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            authProvider.user?.email ?? 'Profil',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout),
+                        SizedBox(width: 12),
+                        Text('Logout'),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -98,7 +245,7 @@ class _ConverterScreenState extends State<ConverterScreen>
                       const SizedBox(height: 24),
                       const ResultCard(),
                       const SizedBox(height: 24),
-                      QuickReference(onTap: _handleReferenceTab),
+                      QuickReference(onTap: _handleReferenceTap),
                       const SizedBox(height: 32),
                     ],
                   ),
@@ -126,8 +273,11 @@ class _ConverterScreenState extends State<ConverterScreen>
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.thermostat,
-                  color: Colors.white, size: 22),
+              child: const Icon(
+                Icons.thermostat,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             const Text(
@@ -165,27 +315,27 @@ class _ConverterScreenState extends State<ConverterScreen>
       ),
       child: Column(
         children: [
-          // Pilih satuan asal
           UnitSelector(
             label: 'DARI',
             selected: provider.fromUnit,
-            onChanged: (unit) =>
-                context.read<TemperatureProvider>().setFromUnit(unit),
+            onChanged: (unit) {
+              context.read<TemperatureProvider>().setFromUnit(unit);
+            },
           ),
           const SizedBox(height: 16),
-
-          // Input field
           Container(
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.07),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                  color: provider.fromUnit.color.withOpacity(0.4)),
+                color: provider.fromUnit.color.withOpacity(0.4),
+              ),
             ),
             child: TextField(
               controller: _inputController,
-              onChanged: (value) =>
-                  context.read<TemperatureProvider>().onInputChanged(value),
+              onChanged: (value) {
+                context.read<TemperatureProvider>().onInputChanged(value);
+              },
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
                 signed: true,
@@ -205,7 +355,9 @@ class _ConverterScreenState extends State<ConverterScreen>
                 ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 16),
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 suffixText: provider.fromUnit.symbol,
                 suffixStyle: TextStyle(
                   color: provider.fromUnit.color.withOpacity(0.7),
@@ -216,16 +368,16 @@ class _ConverterScreenState extends State<ConverterScreen>
             ),
           ),
           const SizedBox(height: 16),
-
-          // Tombol swap
           GestureDetector(
             onTap: _handleSwap,
             child: AnimatedBuilder(
               animation: _swapAnimation,
-              builder: (context, child) => Transform.rotate(
-                angle: _swapAnimation.value,
-                child: child,
-              ),
+              builder: (context, child) {
+                return Transform.rotate(
+                  angle: _swapAnimation.value,
+                  child: child,
+                );
+              },
               child: Container(
                 width: 48,
                 height: 48,
@@ -242,19 +394,21 @@ class _ConverterScreenState extends State<ConverterScreen>
                     ),
                   ],
                 ),
-                child: const Icon(Icons.swap_vert_rounded,
-                    color: Colors.white, size: 24),
+                child: const Icon(
+                  Icons.swap_vert_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 16),
-
-          // Pilih satuan tujuan
           UnitSelector(
             label: 'KE',
             selected: provider.toUnit,
-            onChanged: (unit) =>
-                context.read<TemperatureProvider>().setToUnit(unit),
+            onChanged: (unit) {
+              context.read<TemperatureProvider>().setToUnit(unit);
+            },
           ),
         ],
       ),

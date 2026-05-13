@@ -17,11 +17,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'providers/temperature_provider.dart';
-import 'screens/converter_screen.dart';
+import 'providers/auth_provider.dart';
+import 'screens/auth_wrapper.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -36,8 +45,11 @@ class TemperatureApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TemperatureProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => TemperatureProvider()),
+      ],
       child: MaterialApp(
         title: 'Konversi Suhu',
         debugShowCheckedModeBanner: false,
@@ -49,7 +61,7 @@ class TemperatureApp extends StatelessWidget {
             brightness: Brightness.dark,
           ),
         ),
-        home: const ConverterScreen(),
+        home: const AuthWrapper(),
       ),
     );
   }
